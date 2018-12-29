@@ -1,0 +1,33 @@
+{
+  "name": "grpc-mock",
+  "version": "0.1.0",
+  "description": "a simple grpc mock server",
+  "main": "index.js",
+  "scripts": {
+    "test": "$(npm bin)/mocha --require intelli-espower-loader test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YoshiyukiKato/grpc-mock.git"
+  },
+  "keywords": [
+    "grpc",
+    "mock"
+  ],
+  "author": "YoshiyukiKato",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/YoshiyukiKato/grpc-mock/issues"
+  },
+  "homepage": "https://github.com/YoshiyukiKato/grpc-mock#readme",
+  "dependencies": {
+    "@grpc/proto-loader": "^0.3.0",
+    "grpc": "^1.17.0",
+    "grpc-kit": "^0.1.3"
+  },
+  "devDependencies": {
+    "intelli-espower-loader": "^1.0.1",
+    "mocha": "^5.2.0",
+    "power-assert": "^1.6.1"
+  }
+}

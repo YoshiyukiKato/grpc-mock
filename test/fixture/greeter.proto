@@ -1,0 +1,16 @@
+syntax="proto3";
+
+package greeter;
+
+service Greeter {
+  rpc Hello (RequestGreet) returns (ResponseGreet) {}
+  rpc Goodbye (RequestGreet) returns (ResponseGreet) {}
+}
+
+message RequestGreet {
+  string name = 1;
+}
+
+message ResponseGreet {
+  string message = 1;
+}
