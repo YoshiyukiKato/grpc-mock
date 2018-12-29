@@ -1,4 +1,6 @@
 # grpc-mock
+[![npm version](https://badge.fury.io/js/grpc-mock.svg)](https://badge.fury.io/js/grpc-mock)
+
 A simple mock gRPC server on Node.js.
 
 ```js
