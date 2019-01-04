@@ -10,7 +10,7 @@ const mockServer = createMockServer({
   packageName,
   serviceName,
   rules: [
-    { method: "hello", input: { name: "test" }, output: { message: "Hello" } },
+    { method: "hello", input: { message: "test" }, output: { message: "Hello" } },
     { method: "goodbye", input: ".*", output: { message: "Goodbye" } },
     
     {
@@ -51,7 +51,7 @@ describe("grpc-mock", () => {
   });
 
   it("responds Hello", () => {
-    return hello({ name : "test" })
+    return hello({ message : "test" })
       .then((res) => {
         assert(res.message === "Hello");
       })
@@ -103,14 +103,9 @@ describe("grpc-mock", () => {
     it("responds chat", (done) => {
       const call = client.chat();
       const memo = [];
-      
       call.on("data", (data) => {
         memo.push(data);
       });
-
-      call.write({ message: "Hi" });
-      call.write({ message: "How are you?" });
-
       call.on("end", () => {
         assert.deepEqual(memo, [
           { message: "Hi dear" },
@@ -118,6 +113,8 @@ describe("grpc-mock", () => {
         ]);
         done();
       });
+      call.write({ message: "Hi" });
+      call.write({ message: "How are you?" });
     });
   });
 
