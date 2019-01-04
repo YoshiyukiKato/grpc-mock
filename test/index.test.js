@@ -10,8 +10,37 @@ const mockServer = createMockServer({
   packageName,
   serviceName,
   rules: [
-    { method: "hello", input: { body: { name: "test" } }, output: { body: { message: "Hello" } } },
-    { method: "goodbye", input: { body: ".*" }, output: { body: { message: "Goodbye" } } }
+    { method: "hello", input: { name: "test" }, output: { message: "Hello" } },
+    { method: "goodbye", input: ".*", output: { message: "Goodbye" } },
+    
+    {
+      method: "howAreYou",
+      streamType: "client",
+      dialogue: [
+        { input: { message: "Hi" } },
+        { input: { message: "How are you?" } },
+      ],
+      output: { message: "I'm fine, thank you" }
+    },
+    
+    {
+      method: "howAreYou",
+      streamType: "server",
+      dialogue: [
+        { output: { message: "I'm fine" } },
+        { output: { message: "thank you" } },
+      ],
+      input: { message: "Hi, how are you?" }
+    },
+    
+    {
+      method: "howAreYou",
+      streamType: "mutual",
+      dialogue: [
+        { input: { message: "Hi" }, output: { message: "Hi dear" } },
+        { input: { message: "How are you?" }, output: { message: "I'm fine, thank you." } },
+      ]
+    }
   ]
 });
 
@@ -37,17 +66,23 @@ describe("grpc-mock", () => {
       .catch(assert);
   });
 
-
-
-  /*
-  it("responds empty object", () => {
-    return goodbye({})
-      .then((res) => {
-        assert.deepEqual(res, {});
-      })
-      .catch(assert);
+  describe("client stream", () => {
+    it("responds how are you", () => {
+      assert(false);
+    });
   });
-  */
+  
+  describe("server stream", () => {
+    it("responds how are you", () => {
+      assert(false);
+    });
+  });
+  
+  describe("mutual stream", () => {
+    it("responds how are you", () => {
+      assert(false);
+    });
+  });
 
   after((done) => {
     mockServer.close(false, () => {

@@ -1,10 +1,10 @@
 const {createServer} = require("grpc-kit");
 
 function createMockServer({rules, ...config}){
-  const routesFactory = rules.reduce((_routesFactory, {method,input,output}) => {
+  const routesFactory = rules.reduce((_routesFactory, {method,streamType,dialogue,input,output}) => {
     const handlerFactory = _routesFactory.getHandlerFactory(method)
       || _routesFactory.initHandlerFactory(method);
-    handlerFactory.addRule({method,input,output});
+    handlerFactory.addRule({method,streamType,dialogue,input,output});
     return _routesFactory;
   }, new RoutesFactory());
   const routes = routesFactory.generateRoutes();
@@ -44,22 +44,56 @@ class HandlerFactory {
 
   generateHandler(){
     return function(call, callback){
-      for(let rule of this.rules){
-        const respond = rule.output.stream ? call.write.bind(call) : (res) => { callback(null, res); };
-        if(rule.input.stream){
-          call.on("data", (err, data) => {
-            if(err) {
+      for(const {streamType,dialogue,input,output} of this.rules){
+        if(streamType === "client") {
+          call.on("data", function(memo, err, data) {
+            if(err){
               throw err;
-            } else {
-              handleRequest(rule, respond, data);
+            }else{
+              memo.push(data);
+              const matched = dialogue.reduce((_matched, chunk, index) => {
+                if(memo[index]){
+                  return _matched && isMatched(memo[index], chunk.input);
+                }else{
+                  return false;
+                }
+              }, true);
+              
+              if(matched){
+                callback(null, output);
+              }
             }
-          });
-          
-          call.on("end", () => {
+          }.bind(null, []));
+        } else if (streamType === "server") {
+          if(isMatched(call.request, input)){
+            for(const chunk of dialogue){
+              call.write(chunk);
+            }
             call.end();
-          });
-        }else{
-          handleRequest(rule, respond, call.request);
+          }
+        } else if (streamType === "mutual") {
+          call.on("data", function(memo, err, data) {
+            if(err){
+              throw err;
+            }else{
+              memo.push(data);
+              dialogue.reduce((_matched, chunk, index) => {
+                if(memo[index]){
+                  const matched = _matched && (!chunk.input || isMatched(memo[index], chunk.input));
+                  if (matched && chunk.output) {
+                    call.write(chunk.output);
+                  }
+                  return matched;
+                }else{
+                  return false;
+                }
+              }, true);
+            }
+          }.bind(null, []));
+        } else {
+          if(isMatched(call.request, input)){
+            callback(null, output);
+          }
         }
       }
       //if no rules matched
@@ -68,15 +102,11 @@ class HandlerFactory {
   }
 }
 
-function handleRequest(rule, respond, data){
-  if(typeof rule.input.body === "string") {
-    if(JSON.stringify(data).match(new RegExp(rule.input.body))) {
-      respond(rule.output.body);
-    }
+function isMatched(actual, expected){
+  if(typeof expected === "string") {
+    return JSON.stringify(actual).match(new RegExp(expected));
   } else {
-    if(JSON.stringify(data) === JSON.stringify(rule.input.body)) {
-      respond(rule.output.body);
-    }
+    return JSON.stringify(actual) === JSON.stringify(expected);
   }
 }
 
