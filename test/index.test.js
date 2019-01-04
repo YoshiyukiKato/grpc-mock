@@ -37,7 +37,7 @@ const mockServer = createMockServer({
       method: "chat",
       streamType: "mutual",
       dialogue: [
-        { input: { message: "Hi" }, output: { message: "Hi dear" } },
+        { input: { message: "Hi" }, output: { message: "Hi there" } },
         { input: { message: "How are you?" }, output: { message: "I'm fine, thank you." } },
       ]
     }
@@ -108,7 +108,7 @@ describe("grpc-mock", () => {
       });
       call.on("end", () => {
         assert.deepEqual(memo, [
-          { message: "Hi dear" },
+          { message: "Hi there" },
           { message: "I'm fine, thank you." }
         ]);
         done();
