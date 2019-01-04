@@ -1,6 +1,6 @@
 const path = require("path");
 const assert =require("power-assert");
-const {hello, goodbye} = require("./fixture/greeter-client");
+const {client, hello, goodbye} = require("./fixture/greeter-client");
 const {createMockServer} = require("../index");
 const protoPath = path.resolve(__dirname, "./fixture/greeter.proto");
 const packageName = "greeter";
@@ -24,17 +24,17 @@ const mockServer = createMockServer({
     },
     
     {
-      method: "howAreYou",
+      method: "niceToMeetYou",
       streamType: "server",
       dialogue: [
-        { output: { message: "I'm fine" } },
-        { output: { message: "thank you" } },
+        { output: { message: "Hi, I'm Sana" } },
+        { output: { message: "Nice to meet you too" } },
       ],
-      input: { message: "Hi, how are you?" }
+      input: { message: "Hi. I'm John. Nice to meet you" }
     },
     
     {
-      method: "howAreYou",
+      method: "chat",
       streamType: "mutual",
       dialogue: [
         { input: { message: "Hi" }, output: { message: "Hi dear" } },
@@ -67,20 +67,57 @@ describe("grpc-mock", () => {
   });
 
   describe("client stream", () => {
-    it("responds how are you", () => {
-      assert(false);
+    it("responds how are you", (done) => {
+      const call = client.howAreYou((err, data) => {
+        if(err){
+          assert(err);
+        }else{
+          assert.deepEqual(data, { message: "I'm fine, thank you" });
+        }
+        done();
+      });
+      call.write({ message: "Hi" });
+      call.write({ message: "How are you?" });
+      call.end();
     });
   });
   
   describe("server stream", () => {
-    it("responds how are you", () => {
-      assert(false);
+    it("responds nice to meet you", (done) => {
+      const call = client.niceToMeetYou({ message: "Hi. I'm John. Nice to meet you" });
+      const memo = [];
+      call.on("data", (data) => {
+        memo.push(data);
+      });
+      call.on("end", () => {
+        assert.deepEqual(memo, [
+          { message: "Hi, I'm Sana" },
+          { message: "Nice to meet you too" }
+        ]);
+        done();
+      });
     });
   });
   
   describe("mutual stream", () => {
-    it("responds how are you", () => {
-      assert(false);
+    it("responds chat", (done) => {
+      const call = client.chat();
+      const memo = [];
+      
+      call.on("data", (data) => {
+        memo.push(data);
+      });
+
+      call.write({ message: "Hi" });
+      call.write({ message: "How are you?" });
+
+      call.on("end", () => {
+        assert.deepEqual(memo, [
+          { message: "Hi dear" },
+          { message: "I'm fine, thank you." }
+        ]);
+        done();
+      });
     });
   });
 

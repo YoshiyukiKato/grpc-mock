@@ -46,58 +46,51 @@ class HandlerFactory {
     return function(call, callback){
       for(const {streamType,dialogue,input,output} of this.rules){
         if(streamType === "client") {
-          call.on("data", function(memo, err, data) {
-            if(err){
-              throw err;
-            }else{
-              memo.push(data);
-              const matched = dialogue.reduce((_matched, chunk, index) => {
-                if(memo[index]){
-                  return _matched && isMatched(memo[index], chunk.input);
-                }else{
-                  return false;
-                }
-              }, true);
-              
-              if(matched){
-                callback(null, output);
+          call.on("data", function(memo, data) {
+            memo.push(data);
+            const matched = dialogue.reduce((_matched, chunk, index) => {
+              if(memo[index]){
+                return _matched && isMatched(memo[index], chunk.input);
+              }else{
+                return false;
               }
+            }, true);
+
+            if(matched){
+              callback(null, output);
             }
           }.bind(null, []));
         } else if (streamType === "server") {
           if(isMatched(call.request, input)){
-            for(const chunk of dialogue){
-              call.write(chunk);
+            for(const {output} of dialogue){
+              call.write(output);
             }
             call.end();
           }
         } else if (streamType === "mutual") {
-          call.on("data", function(memo, err, data) {
-            if(err){
-              throw err;
+          call.on("data", function(dialogue, memo, data) {
+            memo.push(data);
+            if(!dialogue[0].input){
+              const {output} = dialogue.shift();
+              call.write(output);
+            } else if (isMatched(memo[0], dialogue[0].input)) {
+              memo.shift();
+              const {output} = dialogue.shift();
+              call.write(output);
             }else{
-              memo.push(data);
-              dialogue.reduce((_matched, chunk, index) => {
-                if(memo[index]){
-                  const matched = _matched && (!chunk.input || isMatched(memo[index], chunk.input));
-                  if (matched && chunk.output) {
-                    call.write(chunk.output);
-                  }
-                  return matched;
-                }else{
-                  return false;
-                }
-              }, true);
+              call.end();
             }
-          }.bind(null, []));
+
+            if(dialogue.length === 0){
+              call.end();
+            }
+          }.bind(null, [...dialogue], []));
         } else {
           if(isMatched(call.request, input)){
             callback(null, output);
           }
         }
       }
-      //if no rules matched
-      //callback(null, {});
     }.bind(this);
   }
 }

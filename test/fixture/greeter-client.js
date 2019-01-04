@@ -8,5 +8,6 @@ const client = createClient({
   serviceName: "Greeter"
 }, "0.0.0.0:50051");
 
+exports.client = client;
 exports.hello = promisify(client.hello.bind(client));
 exports.goodbye = promisify(client.goodbye.bind(client));
