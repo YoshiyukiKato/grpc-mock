@@ -1,10 +1,10 @@
 const {createServer} = require("grpc-kit");
 
 function createMockServer({rules, ...config}){
-  const routesFactory = rules.reduce((_routesFactory, {method,type,input,output}) => {
+  const routesFactory = rules.reduce((_routesFactory, {method,input,output}) => {
     const handlerFactory = _routesFactory.getHandlerFactory(method)
-      || _routesFactory.initHandlerFactory(method).getHandlerFactory(method);
-    handlerFactory.addRule({method,type,input,output});
+      || _routesFactory.initHandlerFactory(method);
+    handlerFactory.addRule({method,input,output});
     return _routesFactory;
   }, new RoutesFactory());
   const routes = routesFactory.generateRoutes();
@@ -22,7 +22,7 @@ class RoutesFactory {
 
   initHandlerFactory(method) {
     this.routebook[method] = new HandlerFactory();
-    return this;
+    return this.routebook[method];
   }
 
   generateRoutes() {
@@ -43,21 +43,40 @@ class HandlerFactory {
   }
 
   generateHandler(){
-    return async function(call, callback){
+    return function(call, callback){
       for(let rule of this.rules){
-        if(rule.type === "pattern"){
-          if(JSON.stringify(call.request).match(new RegExp(rule.input))){
-            return rule.output;
-          };
+        const respond = rule.output.stream ? call.write.bind(call) : (res) => { callback(null, res); };
+        if(rule.input.stream){
+          call.on("data", (err, data) => {
+            if(err) {
+              throw err;
+            } else {
+              handleRequest(rule, respond, data);
+            }
+          });
+          
+          call.on("end", () => {
+            call.end();
+          });
         }else{
-          if(JSON.stringify(rule.input) === JSON.stringify(call.request)) {
-            return rule.output;
-          }
+          handleRequest(rule, respond, call.request);
         }
       }
       //if no rules matched
-      return {};
+      //callback(null, {});
     }.bind(this);
+  }
+}
+
+function handleRequest(rule, respond, data){
+  if(typeof rule.input.body === "string") {
+    if(JSON.stringify(data).match(new RegExp(rule.input.body))) {
+      respond(rule.output.body);
+    }
+  } else {
+    if(JSON.stringify(data) === JSON.stringify(rule.input.body)) {
+      respond(rule.output.body);
+    }
   }
 }
 

@@ -1,6 +1,6 @@
 const path = require("path");
 const assert =require("power-assert");
-const {client, hello, goodbye} = require("./fixture/greeter-client");
+const {hello, goodbye} = require("./fixture/greeter-client");
 const {createMockServer} = require("../index");
 const protoPath = path.resolve(__dirname, "./fixture/greeter.proto");
 const packageName = "greeter";
@@ -10,9 +10,8 @@ const mockServer = createMockServer({
   packageName,
   serviceName,
   rules: [
-    { method: "hello", input: { name: "test" }, output: { message: "Hello" } },
-    { method: "hello", type: "pattern", input: ".*", output: { message: "Hello anyway" } },
-    { method: "goodbye", input: { name: "test" }, output: { message: "Goodbye" } }
+    { method: "hello", input: { body: { name: "test" } }, output: { body: { message: "Hello" } } },
+    { method: "goodbye", input: { body: ".*" }, output: { body: { message: "Goodbye" } } }
   ]
 });
 
@@ -30,22 +29,17 @@ describe("grpc-mock", () => {
       .catch(assert);
   });
 
-  it("responds Hello anyway", () => {
-    return hello({})
-      .then((res) => {
-        assert(res.message === "Hello anyway");
-      })
-      .catch(assert);
-  });
-
   it("responds Goodbye", () => {
-    return goodbye({ name : "test" })
+    return goodbye({})
       .then((res) => {
         assert(res.message === "Goodbye");
       })
       .catch(assert);
   });
 
+
+
+  /*
   it("responds empty object", () => {
     return goodbye({})
       .then((res) => {
@@ -53,9 +47,11 @@ describe("grpc-mock", () => {
       })
       .catch(assert);
   });
+  */
 
   after((done) => {
-    mockServer.close(false, () => {});
-    done();
+    mockServer.close(false, () => {
+      done();
+    });
   });
 });
