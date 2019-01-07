@@ -16,7 +16,7 @@ const mockServer = createMockServer({
     {
       method: "howAreYou",
       streamType: "client",
-      dialogue: [
+      stream: [
         { input: { message: "Hi" } },
         { input: { message: "How are you?" } },
       ],
@@ -26,7 +26,7 @@ const mockServer = createMockServer({
     {
       method: "niceToMeetYou",
       streamType: "server",
-      dialogue: [
+      stream: [
         { output: { message: "Hi, I'm Sana" } },
         { output: { message: "Nice to meet you too" } },
       ],
@@ -36,7 +36,7 @@ const mockServer = createMockServer({
     {
       method: "chat",
       streamType: "mutual",
-      dialogue: [
+      stream: [
         { input: { message: "Hi" }, output: { message: "Hi there" } },
         { input: { message: "How are you?" }, output: { message: "I'm fine, thank you." } },
       ]
@@ -86,7 +86,7 @@ message ResponseGreet {
 |**`streamType`**|Enum<"client"\|"server"\|"mutual">|Optional|Type of stream. Set `client` if only using client side stream, set `server` if only using server side stream, and set `mutual` if using both of client and server side stream. Set null/undefined if not using stream. Default is null|
 |**`input`**|Object\|String|Required when `streamType` is null or `server`|Specifying an expected input. Raw object or pattern string(RegExp) is available|
 |**`output`**|String|Required when `streamType` is null or `client`|Specifying an output to an expected input|
-|**`dialogue`**|Array\<Chunk\>|Required when `streamType` is `client`, `server` and `mutual`|Array of Chunks|
+|**`stream`**|Array\<Chunk\>|Required when `streamType` is `client`, `server` and `mutual`|Array of Chunks|
 
 #### Chunk
 |prop name|type|required/optional|description|

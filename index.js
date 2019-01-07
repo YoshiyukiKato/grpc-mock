@@ -1,10 +1,10 @@
 const {createServer} = require("grpc-kit");
 
 function createMockServer({rules, ...config}){
-  const routesFactory = rules.reduce((_routesFactory, {method,streamType,dialogue,input,output}) => {
+  const routesFactory = rules.reduce((_routesFactory, {method,streamType,stream,input,output}) => {
     const handlerFactory = _routesFactory.getHandlerFactory(method)
       || _routesFactory.initHandlerFactory(method);
-    handlerFactory.addRule({method,streamType,dialogue,input,output});
+    handlerFactory.addRule({method,streamType,stream,input,output});
     return _routesFactory;
   }, new RoutesFactory());
   const routes = routesFactory.generateRoutes();
@@ -44,11 +44,11 @@ class HandlerFactory {
 
   generateHandler(){
     return function(call, callback){
-      for(const {streamType,dialogue,input,output} of this.rules){
+      for(const {streamType,stream,input,output} of this.rules){
         if(streamType === "client") {
           call.on("data", function(memo, data) {
             memo.push(data);
-            const matched = dialogue.reduce((_matched, chunk, index) => {
+            const matched = stream.reduce((_matched, chunk, index) => {
               if(memo[index]){
                 return _matched && isMatched(memo[index], chunk.input);
               }else{
@@ -62,29 +62,29 @@ class HandlerFactory {
           }.bind(null, []));
         } else if (streamType === "server") {
           if(isMatched(call.request, input)){
-            for(const {output} of dialogue){
+            for(const {output} of stream){
               call.write(output);
             }
             call.end();
           }
         } else if (streamType === "mutual") {
-          call.on("data", function(dialogue, memo, data) {
+          call.on("data", function(stream, memo, data) {
             memo.push(data);
-            if(!dialogue[0].input){
-              const {output} = dialogue.shift();
+            if(!stream[0].input){
+              const {output} = stream.shift();
               call.write(output);
-            } else if (isMatched(memo[0], dialogue[0].input)) {
+            } else if (isMatched(memo[0], stream[0].input)) {
               memo.shift();
-              const {output} = dialogue.shift();
+              const {output} = stream.shift();
               call.write(output);
             }else{
               call.end();
             }
 
-            if(dialogue.length === 0){
+            if(stream.length === 0){
               call.end();
             }
-          }.bind(null, [...dialogue], []));
+          }.bind(null, [...stream], []));
         } else {
           if(isMatched(call.request, input)){
             callback(null, output);

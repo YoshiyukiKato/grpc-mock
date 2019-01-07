@@ -16,7 +16,7 @@ const mockServer = createMockServer({
     {
       method: "howAreYou",
       streamType: "client",
-      dialogue: [
+      stream: [
         { input: { message: "Hi" } },
         { input: { message: "How are you?" } },
       ],
@@ -26,7 +26,7 @@ const mockServer = createMockServer({
     {
       method: "niceToMeetYou",
       streamType: "server",
-      dialogue: [
+      stream: [
         { output: { message: "Hi, I'm Sana" } },
         { output: { message: "Nice to meet you too" } },
       ],
@@ -36,7 +36,7 @@ const mockServer = createMockServer({
     {
       method: "chat",
       streamType: "mutual",
-      dialogue: [
+      stream: [
         { input: { message: "Hi" }, output: { message: "Hi there" } },
         { input: { message: "How are you?" }, output: { message: "I'm fine, thank you." } },
       ]
