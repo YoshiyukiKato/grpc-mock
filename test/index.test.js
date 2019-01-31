@@ -12,7 +12,6 @@ const mockServer = createMockServer({
   rules: [
     { method: "hello", input: { message: "test" }, output: { message: "Hello" } },
     { method: "goodbye", input: ".*", output: { message: "Goodbye" } },
-    
     {
       method: "howAreYou",
       streamType: "client",
@@ -22,7 +21,6 @@ const mockServer = createMockServer({
       ],
       output: { message: "I'm fine, thank you" }
     },
-    
     {
       method: "niceToMeetYou",
       streamType: "server",
@@ -32,7 +30,6 @@ const mockServer = createMockServer({
       ],
       input: { message: "Hi. I'm John. Nice to meet you" }
     },
-    
     {
       method: "chat",
       streamType: "mutual",
@@ -50,6 +47,8 @@ describe("grpc-mock", () => {
     done();
   });
 
+  afterEach(() => mockServer.clearInteractions());
+
   it("responds Hello", () => {
     return hello({ message : "test" })
       .then((res) => {
@@ -66,6 +65,22 @@ describe("grpc-mock", () => {
       .catch(assert);
   });
 
+  it("records the interactions", () => {
+    return hello({ message : "test" })
+      .then((res) => {
+        assert.deepEqual(mockServer.getInteractionsOn("hello"), [ { message: "test" } ]);
+      });
+  });
+
+  it("records the interactions when there are no valid responses", (done) => {
+    hello({ message : "test1" }).catch(e => {});
+
+    setTimeout(() => {
+      assert.deepEqual(mockServer.getInteractionsOn("hello"), [ { message: "test1" } ]);
+      done();
+    }, 20);
+  });
+
   describe("client stream", () => {
     it("responds how are you", (done) => {
       const call = client.howAreYou((err, data) => {
@@ -80,8 +95,43 @@ describe("grpc-mock", () => {
       call.write({ message: "How are you?" });
       call.end();
     });
+
+    it("records the interactions when there are valid responses", (done) => {
+        const call = client.howAreYou((err, data) => {
+          if(err){
+            assert(err);
+          }else{
+            assert.deepEqual(mockServer.getInteractionsOn("howAreYou"), [
+               { message: "Hi" },
+               { message: "How are you?" },
+             ]);
+          }
+          done();
+        });
+        call.write({ message: "Hi" });
+        call.write({ message: "How are you?" });
+        call.end();
+    });
+
+    it("records the interactions when there are no valid responses", (done) => {
+        const call = client.howAreYou((err, data) => {});
+        call.write({ message: "Hi" });
+        call.write({ message: "Unexpected message" });
+        call.write({ message: "How are you?" });
+        call.end();
+
+        setTimeout(() => {
+          assert.deepEqual(mockServer.getInteractionsOn("howAreYou"), [
+             { message: "Hi" },
+             { message: "Unexpected message" },
+             { message: "How are you?" },
+           ]);
+          done();
+        }, 20);
+
+    });
   });
-  
+
   describe("server stream", () => {
     it("responds nice to meet you", (done) => {
       const call = client.niceToMeetYou({ message: "Hi. I'm John. Nice to meet you" });
@@ -98,7 +148,7 @@ describe("grpc-mock", () => {
       });
     });
   });
-  
+
   describe("mutual stream", () => {
     it("responds chat", (done) => {
       const call = client.chat();
@@ -118,9 +168,7 @@ describe("grpc-mock", () => {
     });
   });
 
-  after((done) => {
-    mockServer.close(false, () => {
-      done();
-    });
+  after(() => {
+    mockServer.close(true);
   });
 });
