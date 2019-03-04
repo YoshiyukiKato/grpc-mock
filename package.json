@@ -1,6 +1,6 @@
 {
   "name": "grpc-mock",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "a simple grpc mock server",
   "main": "index.js",
   "scripts": {
@@ -23,7 +23,7 @@
   "dependencies": {
     "@grpc/proto-loader": "^0.3.0",
     "grpc": "^1.17.0",
-    "grpc-kit": "^0.1.3"
+    "grpc-kit": "^0.2.0"
   },
   "devDependencies": {
     "intelli-espower-loader": "^1.0.1",
