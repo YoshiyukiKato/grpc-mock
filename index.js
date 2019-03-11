@@ -1,4 +1,5 @@
 const {createServer} = require("grpc-kit");
+const { Metadata } = require("grpc");
 
 
 function createMockServer({rules, ...config}){
@@ -39,6 +40,17 @@ class RoutesFactory {
   }
 }
 
+const prepareMetadata = error => {
+  if(!error.metadata) {
+    return error;
+  }
+  const { metadata } = error;
+  const m = new Metadata();
+  Object.keys(error.metadata).forEach(key => m.add(key, String(metadata[key])));
+  error.metadata = m;
+  return error;
+};
+
 class HandlerFactory {
   constructor(){
     this.rules = [];
@@ -67,7 +79,7 @@ class HandlerFactory {
 
             if(matched){
               if (error) {
-                callback(error);
+                callback(prepareMetadata(error));
               } else {
                 callback(null, output);
               }
@@ -77,7 +89,7 @@ class HandlerFactory {
           interactions.push(call.request);
           if(isMatched(call.request, input)){
             if (error) {
-              call.emit('error', error);
+              call.emit('error', prepareMetadata(error));
             } else {
               for(const {output} of stream){
                 call.write(output);
@@ -110,7 +122,7 @@ class HandlerFactory {
 
           if(isMatched(call.request, input)){
             if(error) {
-              callback(error);
+              callback(prepareMetadata(error));
             } else {
               callback(null, output);
             }
