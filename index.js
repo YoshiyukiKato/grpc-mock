@@ -72,14 +72,14 @@ class HandlerFactory {
             const matched = stream.reduce((_matched, chunk, index) => {
               if(memo[index]){
                 return _matched && isMatched(memo[index], chunk.input);
-              }else{
+              } else {
                 return false;
               }
             }, true);
 
             if(matched){
               if (error) {
-                callback(prepareMetadata(error));
+                  callback(prepareMetadata(error));
               } else {
                 callback(null, output);
               }
@@ -102,7 +102,9 @@ class HandlerFactory {
             memo.push(data);
             interactions.push(data);
 
-            if(!stream[0].input){
+            if(error) {
+              call.emit('error', prepareMetadata(error));
+            } else if(!stream[0].input){
               const {output} = stream.shift();
               call.write(output);
             } else if (isMatched(memo[0], stream[0].input)) {

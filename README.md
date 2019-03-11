@@ -42,7 +42,14 @@ const mockServer = createMockServer({
       ]
     },
     
-    { method: "hello", input: { }, error: { code: 3, message: "Message text is required"} },
+    { method: "returnsError", input: { }, error: { code: 3, message: "Message text is required"} },
+    
+    {
+      method: "returnsErrorWithMetadata",
+      streamType: "server",
+      input: { },
+      error: { code: 3, message: "Message text is required", metadata: { key: "value"}}
+    }
   ]
 });
 mockServer.listen("0.0.0.0:50051");
@@ -89,7 +96,7 @@ message ResponseGreet {
 |**`input`**|Object\|String|Required when `streamType` is null or `server`|Specifying an expected input. Raw object or pattern string(RegExp) is available|
 |**`output`**|String|Required when `streamType` is null or `client`|Specifying an output to an expected input|
 |**`stream`**|Array\<Chunk\>|Required when `streamType` is `client`, `server` and `mutual`|Array of Chunks|
-|**`error`**|Object|Optional|If provided, server will response with this error object|
+|**`error`**|Object|Optional|If provided, server will respond with this error object|
 
 #### Chunk
 |prop name|type|required/optional|description|
