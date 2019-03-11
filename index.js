@@ -2,10 +2,10 @@ const {createServer} = require("grpc-kit");
 
 
 function createMockServer({rules, ...config}){
-  const routesFactory = rules.reduce((_routesFactory, {method,streamType,stream,input,output}) => {
+  const routesFactory = rules.reduce((_routesFactory, {method,streamType,stream,input,output,error}) => {
     const handlerFactory = _routesFactory.getHandlerFactory(method)
       || _routesFactory.initHandlerFactory(method);
-    handlerFactory.addRule({method,streamType,stream,input,output});
+    handlerFactory.addRule({method,streamType,stream,input,output,error});
     return _routesFactory;
   }, new RoutesFactory());
   const routes = routesFactory.generateRoutes();
@@ -51,7 +51,7 @@ class HandlerFactory {
   generateHandler(){
     let interactions = [];
     const handler = function(call, callback){
-      for(const {streamType,stream,input,output} of this.rules){
+      for(const {streamType,stream,input,output,error} of this.rules){
         if(streamType === "client") {
           call.on("data", function(memo, data) {
             memo.push(data);
@@ -66,14 +66,22 @@ class HandlerFactory {
             }, true);
 
             if(matched){
-              callback(null, output);
+              if (error) {
+                callback(error);
+              } else {
+                callback(null, output);
+              }
             }
           }.bind(null, []));
         } else if (streamType === "server") {
           interactions.push(call.request);
           if(isMatched(call.request, input)){
-            for(const {output} of stream){
-              call.write(output);
+            if (error) {
+              call.emit('error', error);
+            } else {
+              for(const {output} of stream){
+                call.write(output);
+              }
             }
             call.end();
           }
@@ -101,7 +109,11 @@ class HandlerFactory {
           interactions.push(call.request);
 
           if(isMatched(call.request, input)){
-            callback(null, output);
+            if(error) {
+              callback(error);
+            } else {
+              callback(null, output);
+            }
           }
         }
       }
