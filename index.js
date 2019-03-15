@@ -1,6 +1,5 @@
-const {createServer} = require("grpc-kit");
-const { Metadata } = require("grpc");
-
+const { createServer } = require('grpc-kit');
+const { Metadata } = require('grpc');
 
 function createMockServer({ rules, ...config }) {
   const routesFactory = rules.reduce((_routesFactory, { method, streamType, stream, input, output, error }) => {
@@ -20,7 +19,7 @@ function createMockServer({ rules, ...config }) {
 
 class RoutesFactory {
   constructor() {
-    this.routebook = {}
+    this.routebook = {};
   }
 
   getHandlerFactory(method) {
@@ -40,30 +39,17 @@ class RoutesFactory {
   }
 }
 
-const prepareMetadata = _error => {
-  if (!_error.metadata) {
-    return _error;
+const prepareMetadata = error => {
+  let errorFields = Object.entries(error);
+  if (error.metadata) {
+    const grpcMetadata = Object.entries(error.metadata)
+      .reduce((m, [k, v]) => (m.add(k, String(v)), m), new Metadata());
+    errorFields = [
+      ...errorFields,
+      ['metadata', grpcMetadata],
+    ];
   }
-
-  const error = new Error();
-
-  const { metadata } = _error;
-  const m = new Metadata();
-  Object.keys(metadata).forEach(key => m.add(key, String(metadata[key])));
-
-  [
-    ...Object.keys(_error),
-    "name", "message", "stack"
-  ]
-    .map(fieldName => ({
-      key: fieldName,
-      value: _error[fieldName]
-    }))
-    .filter(({ key }) => (key !== "metadata" && _error.hasOwnProperty(key)))
-    .forEach(({ key, value }) => error[key] = value);
-
-  error.metadata = m;
-  return error;
+  return errorFields.reduce((e, [k, v]) => (e[k] = v, e), new Error());
 };
 
 class HandlerFactory {
@@ -79,8 +65,8 @@ class HandlerFactory {
     let interactions = [];
     const handler = function (call, callback) {
       for (const { streamType, stream, input, output, error } of this.rules) {
-        if(streamType === "client") {
-          call.on("data", function(memo, data) {
+        if (streamType === 'client') {
+          call.on('data', function (memo, data) {
             memo.push(data);
             interactions.push(data);
 
@@ -100,11 +86,11 @@ class HandlerFactory {
               }
             }
           }.bind(null, []));
-        } else if (streamType === "server") {
+        } else if (streamType === 'server') {
           interactions.push(call.request);
           if (isMatched(call.request, input)) {
             if (error) {
-              call.emit("error", prepareMetadata(error));
+              call.emit('error', prepareMetadata(error));
             } else {
               for (const { output } of stream) {
                 call.write(output);
@@ -112,13 +98,13 @@ class HandlerFactory {
             }
             call.end();
           }
-        } else if (streamType === "mutual") {
-          call.on("data", function(stream, memo, data) {
+        } else if (streamType === 'mutual') {
+          call.on('data', function (stream, memo, data) {
             memo.push(data);
             interactions.push(data);
 
             if (error) {
-              call.emit("error", prepareMetadata(error));
+              call.emit('error', prepareMetadata(error));
             } else if (!stream[0].input) {
               const { output } = stream.shift();
               call.write(output);
@@ -154,7 +140,7 @@ class HandlerFactory {
 }
 
 function isMatched(actual, expected) {
-  if(typeof expected === "string") {
+  if (typeof expected === 'string') {
     return JSON.stringify(actual).match(new RegExp(expected));
   } else {
     return JSON.stringify(actual) === JSON.stringify(expected);
