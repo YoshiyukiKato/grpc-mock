@@ -123,8 +123,7 @@ describe("grpc-mock", () => {
         setTimeout(() => {
           assert.deepEqual(mockServer.getInteractionsOn("howAreYou"), [
              { message: "Hi" },
-             { message: "Unexpected message" },
-             { message: "How are you?" },
+             { message: "Unexpected message" }
            ]);
           done();
         }, 20);
