@@ -1,5 +1,9 @@
 const { createServer } = require('grpc-kit');
 const { Metadata } = require('grpc');
+const UNEXPECTED_INPUT_PATTERN_ERROR = {
+  code: 3,
+  message: "unexpected input pattern"
+};
 
 function createMockServer({ rules, ...config }) {
   const routesFactory = rules.reduce((_routesFactory, { method, streamType, stream, input, output, error }) => {
@@ -69,14 +73,15 @@ class HandlerFactory {
           call.on('data', function (memo, data) {
             memo.push(data);
             interactions.push(data);
-
-            const matched = stream.reduce((_matched, chunk, index) => {
-              if (memo[index]) {
-                return _matched && isMatched(memo[index], chunk.input);
-              } else {
+            
+            const included = memo.reduce((_matched, memoData, index) => {
+              if(stream[index]){
+                return _matched && isMatched(memoData, stream[index].input);
+              }else{
                 return false;
               }
             }, true);
+            const matched = included && memo.length === stream.length;
 
             if (matched) {
               if (error) {
@@ -84,7 +89,12 @@ class HandlerFactory {
               } else {
                 callback(null, output);
               }
+            } else if(included) {
+              //nothing todo
+            } else {
+              callback(prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
             }
+
           }.bind(null, []));
         } else if (streamType === 'server') {
           interactions.push(call.request);
@@ -96,6 +106,9 @@ class HandlerFactory {
                 call.write(output);
               }
             }
+            call.end();
+          } else {
+            call.emit('error', prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
             call.end();
           }
         } else if (streamType === 'mutual') {
@@ -113,6 +126,8 @@ class HandlerFactory {
               const { output } = stream.shift();
               call.write(output);
             } else {
+              //TODO: raise error
+              call.emit('error', prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
               call.end();
             }
 
@@ -129,6 +144,8 @@ class HandlerFactory {
             } else {
               callback(null, output);
             }
+          } else {
+            callback(prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
           }
         }
       }

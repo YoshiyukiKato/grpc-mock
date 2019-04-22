@@ -65,6 +65,17 @@ describe("grpc-mock", () => {
       .catch(assert);
   });
 
+  it("throws unexpected input pattern error", () => {
+    return hello({ message : "unexpected" })
+      .then((res) => {
+        assert.fail("unexpected success with response:", res);
+      })
+      .catch((err) => {
+        assert(err.code, 3);
+        assert(err.details, "unexpected input pattern");
+      });
+  });
+
   it("records the interactions", () => {
     return hello({ message : "test" })
       .then((res) => {
@@ -96,6 +107,21 @@ describe("grpc-mock", () => {
       call.end();
     });
 
+    it("throws unexpected input pattern error", (done) => {
+      const call = client.howAreYou((err, data) => {
+        if(err){
+          assert(err.code, 3);
+          assert(err.details, "unexpected input pattern");
+        }else{
+          assert.fail("unexpected success with response:", data);
+        }
+        done();
+      });
+      call.write({ message: "Hi" });
+      call.write({ message: "unexpected" });
+      call.end();
+    });
+
     it("records the interactions when there are valid responses", (done) => {
         const call = client.howAreYou((err, data) => {
           if(err){
@@ -123,8 +149,7 @@ describe("grpc-mock", () => {
         setTimeout(() => {
           assert.deepEqual(mockServer.getInteractionsOn("howAreYou"), [
              { message: "Hi" },
-             { message: "Unexpected message" },
-             { message: "How are you?" },
+             { message: "Unexpected message" }
            ]);
           done();
         }, 20);
@@ -147,6 +172,19 @@ describe("grpc-mock", () => {
         done();
       });
     });
+
+    it("throws unexpected input pattern error", (done) => {
+      const call = client.niceToMeetYou({ message: "unexpected" });
+      call.on("data", (data) => {
+        assert.fail("unexpected success with response:", data);
+        done();
+      });
+      call.on("error", (err) => {
+        assert(err.code, 3);
+        assert(err.details, "unexpected input pattern");
+        done();
+      });
+    });
   });
 
   describe("mutual stream", () => {
@@ -165,6 +203,20 @@ describe("grpc-mock", () => {
       });
       call.write({ message: "Hi" });
       call.write({ message: "How are you?" });
+    });
+
+    it("throws unexpected input pattern error", (done) => {
+      const call = client.chat();
+      call.on("data", (data) => {
+        assert.fail("unexpected success with response:", data);
+        done();
+      });
+      call.on("error", (err) => {
+        assert(err.code, 3);
+        assert(err.details, "unexpected input pattern");
+        done();
+      });
+      call.write({ message: "Unexpected" });
     });
   });
 
