@@ -107,6 +107,9 @@ class HandlerFactory {
               }
             }
             call.end();
+          } else {
+            call.emit('error', prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
+            call.end();
           }
         } else if (streamType === 'mutual') {
           call.on('data', function (stream, memo, data) {
