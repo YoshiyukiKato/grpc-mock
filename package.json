@@ -1,6 +1,6 @@
 {
   "name": "grpc-mock",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "a simple grpc mock server",
   "main": "index.js",
   "scripts": {
