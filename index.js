@@ -69,42 +69,69 @@ class HandlerFactory {
     let interactions = [];
     const handler = function (call, callback) {
       var last = {
-          unexpected: true,
-          streamType: ''
+          count: this.rules.length,
+          output: undefined,
+          error: undefined,
       };
+      console.log(JSON.stringify(this.rules.length))
+      console.log(JSON.stringify(this.rules));
       for (const { streamType, stream, input, output, error } of this.rules) {
         if (streamType === 'client') {
-          call.on('data', function (memo, data) {
-            memo.push(data);
-            interactions.push(data);
-            
-            const included = memo.reduce((_matched, memoData, index) => {
-              if(stream[index]){
-                return _matched && isMatched(memoData, stream[index].input);
-              }else{
-                return false;
+          // give each rule handler its own "done" variable, so it knows
+          // when it has processed to an result
+          (function () {
+            var done = false
+            call.on('data', function (memo, data) {
+              if (!done) {
+                memo.push(data);
+                interactions.push(data);
+  
+                const included = memo.reduce((_matched, memoData, index) => {
+                  if(stream[index]){
+                    return _matched && isMatched(memoData, stream[index].input);
+                  }else{
+                    return false;
+                  }
+                }, true);
+                const matched = included && memo.length === stream.length;
+  
+                if (matched) {
+                  if (error) {
+                    last.error = error;
+                    last.count = last.count - 1;
+                    done = true
+                    //callback(prepareMetadata(error));
+                  } else {
+                      last.output = output;
+                    last.count = last.count - 1;
+                    done = true
+                    //callback(null, output);
+                  }
+                } else if(included) {
+                  //nothing todo
+                } else {
+                  last.count = last.count - 1;
+                  done = true;
+                }
               }
-            }, true);
-            const matched = included && memo.length === stream.length;
-
-            if (matched) {
-              last.unexpected = false
-              if (error) {
-                callback(prepareMetadata(error));
-              } else {
-                callback(null, output);
+              if (last.count == 0) {
+                // set to -1 so no one else attempts to set the output
+                last.count = -1
+                if (last.output) {
+                  callback(null, last.output);
+                } else if (last.error) {
+                  callback(prepareMetadata(last.error));
+                } else {
+                  callback(prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
+                }
               }
-            } else if(included) {
-              //nothing todo
-            } else {
-              last.streamType = 'client';
-            }
-
-          }.bind(null, []));
+            }.bind(null, []));
+          })();
         } else if (streamType === 'server') {
           interactions.push(call.request);
           if (isMatched(call.request, input)) {
             last.unexpected = false;
+            last.streamType = 'server';
             if (error) {
               call.emit('error', prepareMetadata(error));
             } else {
@@ -113,6 +140,7 @@ class HandlerFactory {
               }
             }
             call.end();
+            break; // allow only a single match
           } else {
             last.streamType = 'server';
           }
@@ -123,17 +151,19 @@ class HandlerFactory {
 
             if (error) {
               call.emit('error', prepareMetadata(error));
-            } else if (!stream[0].input) {
+            } else if (stream && stream[0] && !stream[0].input) {
               const { output } = stream.shift();
               call.write(output);
-            } else if (isMatched(memo[0], stream[0].input)) {
+            } else if (stream && stream[0] && isMatched(memo[0], stream[0].input)) {
               last.unexpected = false;
+              last.streamType = 'mutual';
               memo.shift();
               const { output } = stream.shift();
               call.write(output);
             } else {
               //TODO: raise error
-              last.streamType = 'mutual';
+              call.emit('error', prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
+              call.end();
             }
 
             if (stream.length === 0) {
@@ -141,34 +171,40 @@ class HandlerFactory {
             }
           }.bind(null, [...stream], []));
         } else {
-          interactions.push(call.request);
-
+            interactions.push(call.request);
           if (isMatched(call.request, input)) {
             last.unexpected = false
             if (error) {
-              callback(prepareMetadata(error));
+              last.error = error;
+              //callback(prepareMetadata(error));
             } else {
-              callback(null, output);
+              last.output = output;
+              //callback(null, output);
             }
-            break; // only allow a single unary match
-          } else {
-            last.streamType = '';
+          }
+          last.count = last.count - 1;
+          console.log(JSON.stringify(last))
+          if (last.count == 0) {
+            if (last.output) {
+              callback(null, last.output);
+            } else if (last.error) {
+              callback(prepareMetadata(last.error));
+            } else {
+              callback(prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
+            }
           }
         }
       }
+            /*
       if (last.unexpected) {
-          if (last.streamType == 'client') {
-              callback(prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
-          } else if (last.streamType == 'server') {
+          console.log("AT THE END: " + JSON.stringify(last))
+          if (last.streamType == 'server') {
               call.emit('error', prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
               call.end();
-          } else if (last.streamType == 'mutual') {
-              call.emit('error', prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
-              call.end();
-          } else {
+          } else if (last.streamType == 'unary') {
               callback(prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
           }
-      }
+      }*/
     }.bind(this);
     handler.interactions = interactions;
     return handler;
