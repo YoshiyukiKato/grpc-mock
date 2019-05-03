@@ -68,6 +68,10 @@ class HandlerFactory {
   generateHandler() {
     let interactions = [];
     const handler = function (call, callback) {
+      var last = {
+          unexpected: true,
+          streamType: ''
+      };
       for (const { streamType, stream, input, output, error } of this.rules) {
         if (streamType === 'client') {
           call.on('data', function (memo, data) {
@@ -84,6 +88,7 @@ class HandlerFactory {
             const matched = included && memo.length === stream.length;
 
             if (matched) {
+              last.unexpected = false
               if (error) {
                 callback(prepareMetadata(error));
               } else {
@@ -92,13 +97,14 @@ class HandlerFactory {
             } else if(included) {
               //nothing todo
             } else {
-              callback(prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
+              last.streamType = 'client';
             }
 
           }.bind(null, []));
         } else if (streamType === 'server') {
           interactions.push(call.request);
           if (isMatched(call.request, input)) {
+            last.unexpected = false;
             if (error) {
               call.emit('error', prepareMetadata(error));
             } else {
@@ -108,8 +114,7 @@ class HandlerFactory {
             }
             call.end();
           } else {
-            call.emit('error', prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
-            call.end();
+            last.streamType = 'server';
           }
         } else if (streamType === 'mutual') {
           call.on('data', function (stream, memo, data) {
@@ -122,13 +127,13 @@ class HandlerFactory {
               const { output } = stream.shift();
               call.write(output);
             } else if (isMatched(memo[0], stream[0].input)) {
+              last.unexpected = false;
               memo.shift();
               const { output } = stream.shift();
               call.write(output);
             } else {
               //TODO: raise error
-              call.emit('error', prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
-              call.end();
+              last.streamType = 'mutual';
             }
 
             if (stream.length === 0) {
@@ -139,15 +144,30 @@ class HandlerFactory {
           interactions.push(call.request);
 
           if (isMatched(call.request, input)) {
+            last.unexpected = false
             if (error) {
               callback(prepareMetadata(error));
             } else {
               callback(null, output);
             }
+            break; // only allow a single unary match
           } else {
-            callback(prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
+            last.streamType = '';
           }
         }
+      }
+      if (last.unexpected) {
+          if (last.streamType == 'client') {
+              callback(prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
+          } else if (last.streamType == 'server') {
+              call.emit('error', prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
+              call.end();
+          } else if (last.streamType == 'mutual') {
+              call.emit('error', prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
+              call.end();
+          } else {
+              callback(prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
+          }
       }
     }.bind(this);
     handler.interactions = interactions;
