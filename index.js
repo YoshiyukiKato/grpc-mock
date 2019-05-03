@@ -1,5 +1,6 @@
 const { createServer } = require('grpc-kit');
 const { Metadata } = require('grpc');
+const partial_compare = require('partial-compare');
 const UNEXPECTED_INPUT_PATTERN_ERROR = {
   code: 3,
   message: "unexpected input pattern"
@@ -291,6 +292,9 @@ function isMatched(actual, expected) {
   if (typeof expected === 'string') {
     return JSON.stringify(actual).match(new RegExp(expected));
   } else {
+    if (process.env.GRPC_MOCK_COMPARE && process.env.GRPC_MOCK_COMPARE == "sparse") {
+      return partial_compare(actual, expected);
+    }
     return JSON.stringify(actual) === JSON.stringify(expected);
   }
 }
