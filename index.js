@@ -68,23 +68,56 @@ class HandlerFactory {
   generateHandler() {
     let interactions = [];
     const handler = function (call, callback) {
-      var last = {
-          count: this.rules.length,
+
+      /*
+       * On each request handlers are generated for that request based on the
+       * defined rules. It is possible, if there are multiple rules for a 
+       * method, that mutiple handlers will get generated and each will
+       * attempt to process the incoming messages. This can lead to multiple
+       * handlers attempting to respond and all sort of nastiness happens.
+       *
+       * To "work-a-round" this some state variables are used to capture the
+       * responses from each of the handlers for a rule and insure only a
+       * single response is sent.
+       *
+       * The basic flows is capture the output of each handler and when they
+       * all have run to completion look at the results and pick the best one,
+       * where best is defined (in order) as:
+       * 1. a successful match and response
+       * 2. a successful match and error
+       * 3. an unexpected pattern error
+       *
+       * Before kicking off the processing the number of know rules is known
+       * to be `this.rules.length`, so it is known haw many response should
+       * be expected.
+       */
+      var response = {
+          // number of yet to complete rule handlers
+          active: this.rules.length,
+
+          // used to capture a successful output
           output: undefined,
+
+          // used to capture an error output
           error: undefined,
-	  locked: false,
+
+          // used to capture interaction data (needed for testing)
+          data: [],
+
+          // used by the `mutual` client handling to ensure only a single
+          // rule is matched
+          locked: false,
       };
       for (const { streamType, stream, input, output, error } of this.rules) {
         if (streamType === 'client') {
-          // give each rule handler its own "done" variable, so it knows
-          // when it has processed to an result
+          // give each rule handler its own "done" and data stack variables
           (function () {
             var done = false
+            var dataStack = []
             call.on('data', function (memo, data) {
               if (!done) {
                 memo.push(data);
-                interactions.push(data);
-  
+                dataStack.push(data)
                 const included = memo.reduce((_matched, memoData, index) => {
                   if(stream[index]){
                     return _matched && isMatched(memoData, stream[index].input);
@@ -96,28 +129,34 @@ class HandlerFactory {
   
                 if (matched) {
                   if (error) {
-                    last.error = error;
-                    last.count = last.count - 1;
+                    response.error = error;
+                    response.active = response.active - 1;
+                    response.data = dataStack;
                     done = true
                   } else {
-                      last.output = output;
-                    last.count = last.count - 1;
+                    response.output = output;
+                    response.active = response.active - 1;
+                    response.data = dataStack;
                     done = true
                   }
                 } else if(included) {
                   //nothing todo
                 } else {
-                  last.count = last.count - 1;
+                  response.active = response.active - 1;
+                  response.data = dataStack;
                   done = true;
                 }
               }
-              if (last.count == 0) {
+              if (response.active == 0) {
                 // set to -1 so no one else attempts to set the output
-                last.count = -1
-                if (last.output) {
-                  callback(null, last.output);
-                } else if (last.error) {
-                  callback(prepareMetadata(last.error));
+                response.active = -1
+                for (var i in response.data) {
+                  interactions.push(dataStack[i])
+                }
+                if (response.output) {
+                  callback(null, response.output);
+                } else if (response.error) {
+                  callback(prepareMetadata(response.error));
                 } else {
                   callback(prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
                 }
@@ -125,98 +164,116 @@ class HandlerFactory {
             }.bind(null, []));
           })();
         } else if (streamType === 'server') {
-          interactions.push(call.request);
+          var dataStack = [];
+          dataStack.push(call.request);
           if (isMatched(call.request, input)) {
             if (error) {
-              last.error = error;
+              response.data = dataStack;
+              response.error = error;
             } else {
-              last.output = stream;
+              response.data = dataStack;
+              response.output = stream;
             }
+          } else {
+            response.data = dataStack;
           }
-          last.count = last.count - 1;
-          if (last.count == 0) {
+          response.active = response.active - 1;
+          if (response.active == 0) {
             // set to -1 so no one else attempts to set the output
-	    last.count = -1;
-            if (last.output) {
-              for (const { output } of last.output) {
+            response.active = -1;
+            for (var i in response.data) {
+              interactions.push(dataStack[i])
+            }
+            if (response.output) {
+              for (const { output } of response.output) {
                 call.write(output);
               }
-            } else if (last.error) {
-              call.emit('error', prepareMetadata(last.error));
+            } else if (response.error) {
+              call.emit('error', prepareMetadata(response.error));
             } else {
               call.emit('error', prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
             }
             call.end();
           }
         } else if (streamType === 'mutual') {
+          /*
+           * `mutual` handling is a little bit different because we can't
+           * attempt a "best" match and then give output. Instead we we "lock"
+           * on to the first rule that matches and run that to completion.
+           * Once one rule is locked, the other will simply be no-ops.
+           */
           (function () {
-	    var done = false;
-	    var haveLock = false;
+            var done = false;
+            var haveLock = false;
             call.on('data', function (stream, memo, data) {
-	      if (last.locked && !haveLock) {
-		if (!done) {
-		  last.count = last.count = 1;
-	          done = true;
-		}
-	      }
-	      if (!done) {
+              if (response.locked && !haveLock) {
+                if (!done) {
+                  response.active = response.active = 1;
+                  done = true;
+                }
+              }
+              if (!done) {
                 memo.push(data);
-                interactions.push(data);
 
                 if (haveLock && error) {
-		  last.count = last.count - 1;
-		  last.error = error;
-		  done = true;
+                  interactions.push(data);
+                  response.active = response.active - 1;
+                  response.error = error;
+                  done = true;
                   call.emit('error', prepareMetadata(error));
                 } else if (haveLock && stream && stream[0] && !stream[0].input) {
+                  interactions.push(data);
                   const { output } = stream.shift();
                   call.write(output);
-                } else if ((haveLock || !last.locked) && stream && stream[0] && isMatched(memo[0], stream[0].input)) {
-		  last.locked = true;
-		  if (!haveLock) {
-		    last.count = last.count - 1;
-		    haveLock = true;
-		  }
+                } else if ((haveLock || !response.locked) && stream && stream[0] && isMatched(memo[0], stream[0].input)) {
+                  interactions.push(data);
+                  response.locked = true;
+                  if (!haveLock) {
+                    response.active = response.active - 1;
+                    haveLock = true;
+                  }
                   memo.shift();
                   const { output } = stream.shift();
-                  call.write(output);
+                  if (output) {
+                    call.write(output);
+                  }
                 } else if (haveLock) {
                   //TODO: raise error
+                  interactions.push(data);
                   call.emit('error', prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
                   call.end();
                 } else {
-		  last.count = last.count - 1;
-		  done = true;
-		}
+                  response.active = response.active - 1;
+                  done = true;
+                }
 
                 if (haveLock && stream.length === 0) {
                   call.end();
                 }
-	      }
-	      if (!last.locked && last.count == 0) {
+              }
+              if (!response.locked && response.active == 0) {
                 call.emit('error', prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
                 call.end();
-	      }
+              }
             }.bind(null, [...stream], []));
-	  })()
+          })()
         } else {
-            interactions.push(call.request);
           if (isMatched(call.request, input)) {
-            last.unexpected = false
             if (error) {
-              last.error = error;
+              response.error = error;
             } else {
-              last.output = output;
+              response.output = output;
             }
           }
-          last.count = last.count - 1;
-          if (last.count == 0) {
+          response.active = response.active - 1;
+          if (response.active == 0) {
             // set to -1 so no one else attempts to set the output
-	    last.count = -1;
-            if (last.output) {
-              callback(null, last.output);
-            } else if (last.error) {
-              callback(prepareMetadata(last.error));
+            response.active = -1;
+            interactions.push(call.request);
+            if (response.output) {
+              callback(null, response.output);
+            } else if (response.error) {
+              callback(prepareMetadata(response.error));
             } else {
               callback(prepareMetadata(UNEXPECTED_INPUT_PATTERN_ERROR));
             }
