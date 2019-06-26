@@ -23,7 +23,8 @@
   "dependencies": {
     "@grpc/proto-loader": "^0.3.0",
     "grpc": "^1.17.0",
-    "grpc-kit": "^0.2.0"
+    "grpc-kit": "^0.2.0",
+    "partial-compare": "^1.0.1"
   },
   "devDependencies": {
     "intelli-espower-loader": "^1.0.1",

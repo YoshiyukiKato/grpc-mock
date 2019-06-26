@@ -11,6 +11,7 @@ const mockServer = createMockServer({
   serviceName,
   rules: [
     { method: "hello", input: { message: "test" }, output: { message: "Hello" } },
+    { method: "hello", input: { message: "Hi" }, output: { message: "Back at you" } },
     { method: "goodbye", input: ".*", output: { message: "Goodbye" } },
     {
       method: "howAreYou",
@@ -22,6 +23,15 @@ const mockServer = createMockServer({
       output: { message: "I'm fine, thank you" }
     },
     {
+      method: "howAreYou",
+      streamType: "client",
+      stream: [
+        { input: { message: "Hello" } },
+        { input: { message: "How is the weather?" } },
+      ],
+      output: { message: "Looks like it might rain" }
+    },
+    {
       method: "niceToMeetYou",
       streamType: "server",
       stream: [
@@ -31,11 +41,28 @@ const mockServer = createMockServer({
       input: { message: "Hi. I'm John. Nice to meet you" }
     },
     {
+      method: "niceToMeetYou",
+      streamType: "server",
+      stream: [
+        { output: { message: "Hi, I'm Sana" } },
+        { output: { message: "Have you met John?" } },
+      ],
+      input: { message: "Hi. I'm Frank. Nice to meet you" }
+    },
+    {
       method: "chat",
       streamType: "mutual",
       stream: [
         { input: { message: "Hi" }, output: { message: "Hi there" } },
         { input: { message: "How are you?" }, output: { message: "I'm fine, thank you." } },
+      ]
+    },
+    {
+      method: "chat",
+      streamType: "mutual",
+      stream: [
+        { input: { message: "Hello" }, output: { message: "G'day" } },
+        { input: { message: "Do you think it will rain?" }, output: { message: "No, the sky looks clear" } },
       ]
     }
   ]
@@ -53,6 +80,14 @@ describe("grpc-mock", () => {
     return hello({ message : "test" })
       .then((res) => {
         assert(res.message === "Hello");
+      })
+      .catch(assert);
+  });
+
+  it("responds Back at you", () => {
+    return hello({ message : "Hi" })
+      .then((res) => {
+        assert(res.message === "Back at you");
       })
       .catch(assert);
   });
@@ -104,6 +139,20 @@ describe("grpc-mock", () => {
       });
       call.write({ message: "Hi" });
       call.write({ message: "How are you?" });
+      call.end();
+    });
+
+    it("responds it is raining", (done) => {
+      const call = client.howAreYou((err, data) => {
+        if(err){
+          assert(err);
+        }else{
+          assert.deepEqual(data, { message: "Looks like it might rain" });
+        }
+        done();
+      });
+      call.write({ message: "Hello" });
+      call.write({ message: "How is the weather?" });
       call.end();
     });
 
@@ -173,6 +222,21 @@ describe("grpc-mock", () => {
       });
     });
 
+    it("responds have you met john", (done) => {
+      const call = client.niceToMeetYou({ message: "Hi. I'm Frank. Nice to meet you" });
+      const memo = [];
+      call.on("data", (data) => {
+        memo.push(data);
+      });
+      call.on("end", () => {
+        assert.deepEqual(memo, [
+          { message: "Hi, I'm Sana" },
+          { message: "Have you met John?" }
+        ]);
+        done();
+      });
+    });
+
     it("throws unexpected input pattern error", (done) => {
       const call = client.niceToMeetYou({ message: "unexpected" });
       call.on("data", (data) => {
@@ -203,6 +267,23 @@ describe("grpc-mock", () => {
       });
       call.write({ message: "Hi" });
       call.write({ message: "How are you?" });
+    });
+
+    it("responds weather", (done) => {
+      const call = client.chat();
+      const memo = [];
+      call.on("data", (data) => {
+        memo.push(data);
+      });
+      call.on("end", () => {
+        assert.deepEqual(memo, [
+          { message: "G'day" },
+          { message: "No, the sky looks clear" }
+        ]);
+        done();
+      });
+      call.write({ message: "Hello" });
+      call.write({ message: "Do you think it will rain?" });
     });
 
     it("throws unexpected input pattern error", (done) => {
