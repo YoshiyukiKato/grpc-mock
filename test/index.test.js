@@ -10,6 +10,7 @@ const mockServer = createMockServer({
   packageName,
   serviceName,
   rules: [
+    { method: "hello", input: (input) => { return input == '{ "message": "foobar" }'; }, output: { message: "barfoo" } },
     { method: "hello", input: { message: "test" }, output: { message: "Hello" } },
     { method: "hello", input: { message: "Hi" }, output: { message: "Back at you" } },
     { method: "goodbye", input: ".*", output: { message: "Goodbye" } },
@@ -75,6 +76,14 @@ describe("grpc-mock", () => {
   });
 
   afterEach(() => mockServer.clearInteractions());
+
+  it("responds barfoo", () => {
+    return hello({ message : "foobar" })
+      .then((res) => {
+        assert(res.message === "barfoo");
+      })
+      .catch(assert);
+  });
 
   it("responds Hello", () => {
     return hello({ message : "test" })

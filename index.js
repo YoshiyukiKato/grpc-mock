@@ -291,7 +291,10 @@ class HandlerFactory {
 function isMatched(actual, expected) {
   if (typeof expected === 'string') {
     return JSON.stringify(actual).match(new RegExp(expected));
-  } else {
+  } else if (typeof expected === 'function' && expected.length == 1) {
+	return expected(actual);
+  } else
+  {
     if (process.env.GRPC_MOCK_COMPARE && process.env.GRPC_MOCK_COMPARE == "sparse") {
       return partial_compare(actual, expected);
     }
